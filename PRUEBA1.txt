@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LEE-READER - Sistema Inteligente de Lectura & Biblioteca</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght=0,400;0,700;1,400&family=Fira+Code:wght=400;500&family=Cinzel:wght=600;800;900&display=swap" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <!-- Librería EPUB -->
+    <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b0f19;
+            color: #f1f5f9;
+        }
+        .transition-all-300 {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #14b8a6;
+        }
+        .book-columns {
+            column-count: 2;
+            column-gap: 4rem;
+            column-rule: 1px inset rgba(255, 255, 255, 0.08);
+            width: 100%;
+        }
+        .turquoise-tech-title {
+            font-family: 'Cinzel', serif;
+            background: linear-gradient(135deg, #a7f3d0 0%, #22c7b8 40%, #1abc9c 70%, #14b8a6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 12px rgba(20, 184, 166, 0.45));
+            font-weight: 900;
+            letter-spacing: 0.06em;
+        }
+        .hl-yellow { background-color: rgba(254, 240, 138, 0.55); color: #000; }
+        .hl-mint { background-color: rgba(167, 243, 208, 0.55); color: #000; }
+        .hl-sky { background-color: rgba(186, 230, 253, 0.55); color: #000; }
+        .hl-blue { background-color: rgba(191, 219, 254, 0.55); color: #000; }
+        .hl-pink { background-color: rgba(254, 205, 211, 0.6); color: #000; }
+        .hl-lavender { background-color: rgba(233, 213, 255, 0.6); color: #000; }
+        .hl-teal { background-color: rgba(153, 246, 228, 0.55); color: #000; }
+        
+        .underline-text {
+            border-bottom: 2px dashed currentColor;
+        }
+
+        .reader-config-sticky {
+            position: sticky;
+            top: 0;
+            z-index: 40;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .reader-secondary-sticky {
+            position: sticky;
+            top: 72px;
+            z-index: 35;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .reader-vertical {
+            overflow-y: auto;
+            overflow-x: hidden;
+            scroll-behavior: smooth;
+        }
+        .reader-vertical-content {
+            min-width: 0;
+            width: 100%;
+        }
+        
+        @media (max-width: 768px) {
+            .reader-config-sticky { top: 0; }
+            .reader-secondary-sticky { top: 64px; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col overflow-x-hidden">
+
+<header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur-md sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-col md:flex-row gap-4 justify-between items-center">
+        <div class="flex items-center gap-3">
+            <div class="p-2.5 bg-gradient-to-tr from-teal-500 to-emerald-400 rounded-xl shadow-lg shadow-teal-500/20 flex items-center justify-center">
+                <svg class="w-6 h-6 text-slate-950" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                </svg>
+            </div>
+            <div>
+                <h1 class="text-2xl font-black tracking-tight turquoise-tech-title">LEE-READER</h1>
+                <p class="text-[9px] text-teal-400 font-bold tracking-wider uppercase">Lector Universal & Biblioteca Inteligente</p>
+            </div>
+        </div>
+
+        <nav class="flex space-x-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800 w-full md:w-auto justify-center">
+            <button onclick="switchView('library')" id="nav-library" class="px-4 py-2 rounded-lg text-xs font-bold transition-all bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/20 flex items-center gap-2">
+                🏛️ Mi Biblioteca
+            </button>
+            <button onclick="switchView('reader')" id="nav-reader" class="px-4 py-2 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-white flex items-center gap-2">
+                📖 Visor E-Reader
+            </button>
+            <button onclick="switchView('search')" id="nav-search" class="px-4 py-2 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-white flex items-center gap-2">
+                🏆 Buscador Rankings
+            </button>
+        </nav>
+    </div>
+</header>
+
+<div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"></div>
+
+<div id="confirm-modal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 space-y-4">
+        <h4 id="confirm-title" class="text-base font-bold text-slate-100">Confirmación</h4>
+        <p id="confirm-msg" class="text-xs text-slate-400"></p>
+        <div class="flex justify-end gap-2 pt-2">
+            <button id="confirm-cancel-btn" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-bold rounded-xl text-slate-300 transition-all">Cancelar</button>
+            <button id="confirm-ok-btn" class="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-xs font-bold rounded-xl text-white transition-all">Aceptar</button>
+        </div>
+    </div>
+</div>
+
+<main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 flex flex-col">
+
+    <section id="view-library" class="space-y-6">
+        <div class="bg-gradient-to-r from-slate-900 via-slate-950 to-teal-950/10 p-6 rounded-2xl border border-slate-800 shadow-xl space-y-4">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-200">Mi Estantería de Libros</h2>
+                    <p class="text-xs text-slate-400">Personaliza tus estantes, sube tus lecturas en múltiples formatos o elimina estanterías que ya no uses.</p>
+                </div>
+                <div class="flex flex-wrap gap-2 w-full md:w-auto">
+                    <button id="btn-add-book" onclick="openAddBookModal()" class="px-4 py-2 bg-teal-500 hover:bg-teal-400 text-slate-950 text-xs font-bold rounded-xl transition-all shadow-md">
+                        ➕ Añadir Libro (EPUB/PDF/TXT)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div class="md:col-span-1 bg-slate-900/60 p-4 rounded-xl border border-slate-800 space-y-4">
+                <h3 class="text-xs font-black uppercase tracking-wider text-slate-400">Mis Estantes</h3>
+                <div class="flex flex-col gap-1.5" id="shelves-list">
+                    </div>
+                <div class="pt-4 border-t border-slate-800/80">
+                    <input type="text" id="new-shelf-input" placeholder="Nombre de estante..." class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs outline-none focus:border-teal-500 mb-2 text-slate-200">
+                    <button onclick="createNewShelf()" class="w-full py-1.5 bg-teal-950 hover:bg-teal-900 text-teal-300 border border-teal-900/40 text-xs font-bold rounded-lg transition-all">
+                        🔨 Crear Estante
+                    </button>
+                </div>
+            </div>
+
+            <div class="md:col-span-3 space-y-4">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2" id="current-shelf-title">
+                        📂 Todos los Recursos
+                    </h3>
+                    <span id="library-count" class="text-xs text-teal-400 font-bold bg-teal-950/40 border border-teal-900/30 px-2.5 py-1 rounded-lg font-mono">0 libros</span>
+                </div>
+                <div id="books-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="view-reader" class="hidden flex-1 flex flex-col">
+        <div id="reader-config-bar" class="reader-config-sticky bg-slate-950 p-3 md:p-4 border-b border-slate-800 flex flex-wrap gap-3 items-center justify-between text-xs text-slate-300">
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="text-[10px] text-slate-400 font-bold">Tema</span>
+                <div class="flex gap-1">
+                    <button onclick="setReaderTheme('light')" class="px-2 py-1 bg-white text-slate-900 rounded-md text-[10px] font-bold">Claro</button>
+                    <button onclick="setReaderTheme('dark')" class="px-2 py-1 bg-slate-900 text-white rounded-md text-[10px] font-bold border border-slate-700">Oscuro</button>
+                    <button onclick="setReaderTheme('sepia')" class="px-2 py-1 bg-[#f4ecd8] text-[#5b4636] rounded-md text-[10px] font-bold">Sepia</button>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-1.5">
+                <div class="flex gap-1 bg-slate-900 p-1 rounded-md border border-slate-800">
+                    <button onclick="setPCViewMode('pages')" id="btn-view-pages" class="px-2 py-0.5 bg-teal-500 text-slate-950 rounded text-[10px] font-bold">📖 2 Páginas</button>
+                    <button onclick="setPCViewMode('vertical')" id="btn-view-vertical" class="px-2 py-0.5 text-slate-400 rounded text-[10px] font-bold">📜 Vertical</button>
+                </div>
+                <button onclick="toggleMaximizeReader()" id="btn-maximize-main" class="px-3 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-md text-[10px] font-bold text-teal-400 flex items-center gap-1">
+
+                    🔲 Maximizar
+                </button>
+                <button onclick="exitReader()" class="px-3 py-1 bg-red-950 hover:bg-red-900 border border-red-900/40 text-red-200 rounded-md text-[10px] font-bold flex items-center gap-1">
+                    ✕ Salir
+                </button>
+            </div>
+        </div>
+        
+        <div id="reader-info-bar" class="reader-secondary-sticky bg-slate-950/80 border-b border-slate-800 px-4 py-2 flex items-center justify-between text-[10px] text-slate-300">
+            <div class="flex items-center gap-2">
+                <span id="reader-book-title" class="font-bold text-slate-100 truncate max-w-xs">Ningún libro cargado</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span id="page-counter" class="text-slate-500 font-mono"></span>
+            </div>
+        </div>
+
+        <div id="reader-wrapper" class="flex-1 flex relative">
+            <div id="reader-scroller" class="reader-vertical flex-1 p-6 md:p-12 overflow-y-auto">
+                <div id="reader-text-container" class="reader-vertical-content max-w-4xl mx-auto leading-relaxed text-justify select-text text-base"></div>
+            </div>
+        </div>
+    </section>
+
+    <section id="view-search" class="hidden p-4 bg-slate-900 border border-slate-800 rounded-xl">
+        <h2 class="text-slate-200 font-bold">🏆 Rankings de Lectura</h2>
+        <p class="text-xs text-slate-400">Panel independiente de calificaciones literarias.</p>
+    </section>
+
+</main>
+
+<div id="add-book-modal" class="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+        <div class="p-5 border-b border-slate-800 bg-slate-950 flex justify-between items-center">
+            <h3 class="text-base font-bold text-slate-200">Añadir Nuevo Libro</h3>
+            <button onclick="closeAddBookModal()" class="text-slate-400 hover:text-white">✕</button>
+        </div>
+        <div class="p-6 space-y-4">
+            <div class="border-2 border-dashed border-slate-700 hover:border-teal-500 p-6 rounded-xl text-center bg-slate-950/60 cursor-pointer relative">
+                <input type="file" id="file-uploader" accept=".txt,.html,.epub,.pdf" onchange="handleFileImport(event)" class="absolute inset-0 opacity-0 cursor-pointer">
+                <span class="text-3xl block mb-2">📂</span>
+                <p class="text-xs font-bold text-slate-300">Cargar archivo local (TXT, HTML, EPUB o PDF)</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Configuración Inicial de Datos y Estados en Memoria Local (LocalStorage)
+    let library = JSON.parse(localStorage.getItem("or_library_books")) || [
+        { id: "b1", title: "Cien años de soledad", author: "Gabriel García Márquez", shelf: "Favoritos", color: "#7c2d12", format: "TXT", content: "[Capítulo 1]\nMuchos años después frente al pelotón de fusilamiento..." },
+        { id: "b2", title: "Don Quijote de la Mancha", author: "Miguel de Cervantes", shelf: "Lecturas Clásicas", color: "#115e59", format: "TXT", content: "[Capítulo 1]\nEn un lugar de la Mancha, de cuyo nombre no quiero acordarme..." }
+    ];
+
+    let shelves = JSON.parse(localStorage.getItem("or_library_shelves")) || ["Favoritos", "Lecturas Clásicas"];
+    let currentShelf = "Todos";
+    let activeBook = null;
+    let readerConfig = { theme: 'dark', viewMode: 'vertical', fontSize: 18, fontFamily: 'Inter', contrast: 100, maximized: false };
+
+    // Inicializar Aplicación al Cargar
+    
+    function showLoader(message = "Procesando archivo...") {
+
+    const overlay = document.getElementById("loader-overlay");
+    const text = document.getElementById("loader-text");
+    const bar = document.getElementById("loader-bar");
+
+    if (!overlay || !text || !bar) return;
+
+    text.textContent = message;
+
+    overlay.classList.remove("hidden");
+    overlay.classList.add("flex");
+
+    // Reiniciar barra
+    bar.style.width = "0%";
+    let progress = 0;
+    clearInterval(window.loaderInterval);
+
+    window.loaderInterval = setInterval(() => {
+
+        progress += Math.random() * 18;
+        if (progress > 92) progress = 92;
+        bar.style.width = progress + "%";
+    }, 250);
+}
+
+function hideLoader() {
+
+    const overlay = document.getElementById("loader-overlay");
+    const bar = document.getElementById("loader-bar");
+
+    if (!overlay || !bar) return; clearInterval(window.loaderInterval);
+    bar.style.width = "100%";
+    setTimeout(() => {
+        overlay.classList.remove("flex"); overlay.classList.add("hidden");
+    }, 400);
+}
+
+function showSuccess(message = "Cargado con éxito") {
+
+    alert(message);
+
+    const overlay = document.getElementById("success-overlay");
+    const text = document.getElementById("success-text");
+
+    if (!overlay || !text) {
+        console.log("No existe success-overlay");
+        return;
+    }
+
+    text.textContent = message;
+
+    overlay.classList.remove("hidden");
+    overlay.classList.add("flex");
+
+    setTimeout(() => {
+
+        overlay.classList.remove("flex");
+        overlay.classList.add("hidden");
+
+    }, 1800);
+}
+
+    window.addEventListener("DOMContentLoaded", () => {
+        renderShelves();
+        renderBooks();
+        switchView('library');
+    });
+
+    function saveState() {
+        localStorage.setItem("or_library_books", JSON.stringify(library));
+        localStorage.setItem("or_library_shelves", JSON.stringify(shelves));
+    }
+
+    function showToast(msg) {
+        const container = document.getElementById("toast-container");
+        const toast = document.createElement("div");
+        toast.className = "bg-slate-900 border border-teal-500/40 text-teal-300 px-4 py-2.5 rounded-xl text-xs font-bold shadow-xl transition-all duration-300";
+        toast.textContent = msg;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 3500);
+    }
+
+    // Vistas
+    function switchView(view) {
+        document.getElementById('view-library').classList.toggle('hidden', view !== 'library');
+        document.getElementById('view-reader').classList.toggle('hidden', view !== 'reader');
+        document.getElementById('view-search').classList.toggle('hidden', view !== 'search');
+    }
+
+    // GESTIÓN DE ESTANTES (CON OPCIÓN DE ELIMINACIÓN)
+    function renderShelves() {
+        const container = document.getElementById("shelves-list");
+        if (!container) return;
+
+        let html = `
+            <button onclick="selectShelf('Todos')" class="w-full text-left text-xs px-3 py-2 rounded-xl font-bold flex justify-between items-center ${currentShelf === 'Todos' ? 'bg-teal-500 text-slate-950' : 'text-slate-400 hover:bg-slate-800/50'}">
+                <span>📂 Todos los Recursos</span>
+            </button>
+        `;
+
+        shelves.forEach(shelf => {
+            const isSelected = currentShelf === shelf;
+            html += `
+                <div class="group flex items-center justify-between w-full rounded-xl px-1 ${isSelected ? 'bg-teal-950/40 border border-teal-500/30 text-teal-300' : 'hover:bg-slate-800/40 text-slate-400'}">
+                    <button onclick="selectShelf('${shelf}')" class="flex-1 text-left text-xs px-2 py-2 truncate font-medium">
+                        📖 ${shelf}
+                    </button>
+                    <button onclick="deleteShelf('${shelf}')" class="px-2 py-2 text-slate-500 hover:text-red-400 transition-colors text-xs font-bold" title="Eliminar este estante">
+                        ✕
+                    </button>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    }
+
+    function createNewShelf() {
+        const input = document.getElementById("new-shelf-input");
+        const name = input.value.trim();
+        if (!name) return;
+        if (shelves.includes(name) || name === "Todos") {
+            showToast("El estante ya existe.");
+            return;
+        }
+        shelves.push(name);
+        input.value = "";
+        saveState();
+        renderShelves();
+        showToast(`Estante "${name}" creado.`);
+    }
+
+    function deleteShelf(shelfName) {
+        const modal = document.getElementById("confirm-modal");
+        document.getElementById("confirm-title").textContent = "Eliminar Estante";
+        document.getElementById("confirm-msg").textContent = `¿Estás seguro de que deseas eliminar el estante "${shelfName}"? Los libros que contiene no se borrarán, volverán a la vista general.`;
+        
+        modal.classList.remove("hidden");
+
+        document.getElementById("confirm-ok-btn").onclick = () => {
+            // Reasignar libros del estante eliminado a un estado vacío o general
+            library.forEach(book => {
+                if(book.shelf === shelfName) book.shelf = "";
+            });
+            shelves = shelves.filter(s => s !== shelfName);
+            if (currentShelf === shelfName) currentShelf = "Todos";
+            saveState();
+            renderShelves();
+            renderBooks();
+            modal.classList.add("hidden");
+            showToast("Estante eliminado correctamente.");
+        };
+
+        document.getElementById("confirm-cancel-btn").onclick = () => {
+            modal.classList.add("hidden");
+        };
+    }
+
+    function selectShelf(shelf) {
+        currentShelf = shelf;
+        document.getElementById("current-shelf-title").textContent = shelf === 'Todos' ? "📂 Todos los Recursos" : `📂 Estante: ${shelf}`;
+        renderShelves();
+        renderBooks();
+    }
+
+    // RENDERIZAR LIBROS
+    function renderBooks() {
+        const grid = document.getElementById("books-grid");
+        const counter = document.getElementById("library-count");
+        if (!grid) return;
+
+        let filtered = library.filter(b => currentShelf === "Todos" || b.shelf === currentShelf);
+        counter.textContent = `${filtered.length} libro(s)`;
+
+        if (filtered.length === 0) {
+            grid.innerHTML = `<div class="col-span-full text-slate-500 text-xs py-8 text-center">Este estante está vacío. Carga un archivo para comenzar.</div>`;
+            return;
+        }
+
+        grid.innerHTML = filtered.map(book => `
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between hover:border-teal-500/50 transition-all">
+                <div class="flex items-start gap-3">
+                    <div class="w-10 h-14 rounded shadow-md flex items-center justify-center text-[10px] font-bold text-white shrink-0" style="background-color: ${book.color || '#1e293b'}">
+                        ${book.format}
+                    </div>
+                    <div class="overflow-hidden">
+                        <h4 class="text-xs font-bold text-slate-200 truncate">${book.title}</h4>
+                        <p class="text-[11px] text-slate-400 truncate">${book.author || "Autor Desconocido"}</p>
+                        <span class="text-[9px] bg-slate-950 px-1.5 py-0.5 rounded text-teal-400 font-mono mt-1 inline-block">${book.format}</span>
+                    </div>
+                </div>
+                <div class="mt-4 flex gap-2">
+                    <button onclick="readBook('${book.id}')" class="flex-1 py-1.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs rounded-lg transition-all">
+                        Leer
+                    </button>
+                    <button onclick="deleteBook('${book.id}')" class="px-2 py-1.5 bg-slate-950 hover:bg-red-950 text-slate-400 hover:text-red-400 border border-slate-800 rounded-lg transition-all text-xs">
+                        🗑️
+                    </button>
+                </div>
+            </div>
+        `).join("");
+    }
+
+    function deleteBook(id) {
+        library = library.filter(b => b.id !== id);
+        saveState();
+        renderBooks();
+        showSuccess("Libro eliminado");
+    }
+
+    // MODAL DE IMPORTACIÓN
+    function openAddBookModal() { document.getElementById("add-book-modal").classList.remove("hidden"); }
+    function closeAddBookModal() { document.getElementById("add-book-modal").classList.add("hidden"); }
+
+    // DECODIFICADOR Y SOPORTE DE ARCHIVOS (INCLUIDO E-PUB REAL)
+    async function handleFileImport(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const ext = file.name.split('.').pop().toLowerCase();
+        let title = file.name.replace(/\.[^/.]+$/, "");
+        let content = "";
+        let format = ext.toUpperCase();
+
+        showLoader("Cargando y procesando libro...");
+
+        try {
+            if (ext === 'txt') {
+                content = await file.text();
+            } 
+            else if (ext === 'html' || ext === 'htm') {
+                const rawHtml = await file.text();
+                const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
+                content = doc.body.innerText || doc.body.textContent;
+            } 
+            else if (ext === 'pdf') {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                let text = "";
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const contentObj = await page.getTextContent();
+                    text += contentObj.items.map(item => item.str).join(" ") + "\n\n";
+                }
+                content = text;
+            } 
+
+                
+            // LÓGICA DE PROCESAMIENTO E-PUB REAL CON JSZIP
+           
+            else if (ext === 'epub') {
+
+                const arrayBuffer = await file.arrayBuffer();
+                const zip = await JSZip.loadAsync(arrayBuffer);
+
+                // Buscar TODOS los posibles capítulos/textos
+                const textFiles = Object.keys(zip.files)
+                    .filter(path =>
+                        path.toLowerCase().endsWith('.xhtml') ||
+                        path.toLowerCase().endsWith('.html') ||
+                        path.toLowerCase().endsWith('.htm') ||
+                        path.toLowerCase().endsWith('.xml')
+                )
+                    .sort();
+
+                if (textFiles.length === 0) {
+        throw new Error("Este EPUB no contiene páginas legibles.");
+    }
+
+    let fullEpubText = "";
+
+    for (const filePath of textFiles) {
+
+        try {
+
+            const rawContent = await zip.files[filePath].async("text");
+
+            // Parsear como XHTML/XML
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(rawContent, "application/xhtml+xml");
+
+            // Eliminar elementos innecesarios
+            doc.querySelectorAll("script, style, nav").forEach(el => el.remove());
+
+            // Extraer texto
+            let text = doc.documentElement.textContent || "";
+
+            // Limpiar espacios excesivos
+            text = text
+                .replace(/\s+/g, " ")
+                .replace(/\n\s*\n/g, "\n\n")
+                .trim();
+
+            // Evitar agregar basura vacía
+            if (text.length > 80) {
+                fullEpubText += text + "\n\n";
+            }
+
+        } catch (sectionError) {
+            console.warn("Error leyendo sección EPUB:", filePath);
+        }
+    }
+
+    if (!fullEpubText.trim()) {
+        throw new Error("No se pudo extraer texto útil del EPUB.");
+    }
+
+    content = fullEpubText;
+}
+                
+
+                
+            else {
+                showToast("Formato no soportado.");
+                return;
+            }
+
+            if (!content || content.trim().length === 0) {
+                throw new Error("El archivo no contiene texto legible.");
+            }
+
+            // Guardar en la biblioteca local
+            const colors = ["#7c2d12", "#115e59", "#1e3a8a", "#581c87", "#881337"];
+            const randomColor = colors[Math.floor(Math.random() * colors.length)];
+
+            library.push({
+                id: "b_" + Date.now(),
+                title: title,
+                author: "Importado Local",
+                shelf: currentShelf !== "Todos" ? currentShelf : "",
+                color: randomColor,
+                format: format,
+                content: content
+            });
+
+            saveState();
+            renderBooks();
+            closeAddBookModal();
+            
+            hideLoader();
+            showSuccess("Cargado con éxito");
+
+        } catch (err) {
+            console.error(err);
+            hideLoader();
+            showToast("Error al decodificar: " + err.message);
+        }
+    }
+
+    // VISOR E-READER MEJORADO (SIN MARCOS EXTRAÑOS NI BOTONES DUPLICADOS)
+    function readBook(id) {
+        activeBook = library.find(b => b.id === id);
+        if (!activeBook) return;
+
+        document.getElementById("reader-book-title").textContent = activeBook.title;
+        
+        // Renderizar el texto puro e inteligente
+        const container = document.getElementById("reader-text-container");
+        container.innerHTML = activeBook.content.replace(/\n/g, '<br>');
+
+        applyReaderSettings();
+        switchView('reader');
+    }
+
+    function applyReaderSettings() {
+        const scroller = document.getElementById("reader-scroller");
+        const container = document.getElementById("reader-text-container");
+        
+        // Temas de Fondo
+        if (readerConfig.theme === 'light') {
+            scroller.className = "reader-vertical flex-1 p-6 md:p-12 bg-white text-slate-900";
+        } else if (readerConfig.theme === 'sepia') {
+            scroller.className = "reader-vertical flex-1 p-6 md:p-12 bg-[#f4ecd8] text-[#5b4636]";
+        } else {
+            scroller.className = "reader-vertical flex-1 p-6 md:p-12 bg-slate-950 text-slate-200";
+        }
+
+        // Modo Columnas (2 Páginas) vs Vertical
+        if (readerConfig.viewMode === 'pages' && window.innerWidth >= 768) {
+            container.className = "book-columns max-w-6xl mx-auto leading-relaxed text-justify text-base";
+        } else {
+            container.className = "reader-vertical-content max-w-4xl mx-auto leading-relaxed text-justify text-base";
+        }
+    }
+
+    function setPCViewMode(mode) {
+        readerConfig.viewMode = mode;
+        document.getElementById("btn-view-pages").className = mode === 'pages' ? "px-2 py-0.5 bg-teal-500 text-slate-950 rounded text-[10px] font-bold" : "px-2 py-0.5 text-slate-400 rounded text-[10px] font-bold";
+        document.getElementById("btn-view-vertical").className = mode === 'vertical' ? "px-2 py-0.5 bg-teal-500 text-slate-950 rounded text-[10px] font-bold" : "px-2 py-0.5 text-slate-400 rounded text-[10px] font-bold";
+        applyReaderSettings();
+    }
+
+    function setReaderTheme(theme) {
+        readerConfig.theme = theme;
+        applyReaderSettings();
+    }
+
+    // Maximizar sin desordenar la interfaz superior homogénea
+    function toggleMaximizeReader() {
+
+    readerConfig.maximized = !readerConfig.maximized;
+
+    const mainSection = document.getElementById("view-reader");
+    const btn = document.getElementById("btn-maximize-main");
+
+    // BOTÓN SALIR
+    const exitBtn = document.querySelector('button[onclick="exitReader()"]');
+
+    if (readerConfig.maximized) {
+
+        // ACTIVAR MODO PANTALLA COMPLETA
+        mainSection.classList.add( "fixed", "inset-0", "z-50", "bg-slate-950" );
+
+        // BOTÓN MODERNO
+        btn.innerHTML = "← Regresar"; btn.classList.remove("text-teal-400"); btn.classList.add("text-amber-400");
+
+        // OCULTAR BOTÓN SALIR
+        if (exitBtn) { exitBtn.style.display = "none";
+        }
+    } else {
+
+        // DESACTIVAR PANTALLA COMPLETA
+        mainSection.classList.remove( "fixed", "inset-0", "z-50", "bg-slate-950" );
+
+        // RESTAURAR BOTÓN
+        btn.innerHTML = "🔲 Maximizar";
+        btn.classList.remove("text-amber-400");
+        btn.classList.add("text-teal-400");
+
+        // MOSTRAR BOTÓN SALIR
+        if (exitBtn) {exitBtn.style.display = "flex";
+        }
+    }
+
+    applyReaderSettings();
+}
+
+    function exitReader() {
+        if (readerConfig.maximized) {
+            toggleMaximizeReader();
+        }
+        switchView('library');
+    }
+</script>
+
+</body>
+</html>
